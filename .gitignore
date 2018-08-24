@@ -51,3 +51,6 @@ docs/*.tmp
 
 # Generated files
 *.pc
+
+# VS Code
+.vscode/

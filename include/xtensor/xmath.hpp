@@ -2131,6 +2131,30 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
                 return math::isnan(lhs) ? result_type(V) : lhs;
             }
         };
+
+        template <class T>
+        struct nan_max
+        {
+            using value_type = T;
+            using result_type = value_type;
+
+            constexpr result_type operator()(const value_type lhs, const value_type rhs) const
+            {
+                return !math::isnan(rhs) ? std::max(lhs, rhs) : lhs;
+            }
+        };
+
+        template <class T>
+        struct nan_min
+        {
+            using value_type = T;
+            using result_type = value_type;
+
+            constexpr result_type operator()(const value_type lhs, const value_type rhs) const
+            {
+                return !math::isnan(rhs) ? std::min(lhs, rhs) : lhs;
+            }
+        };
     }
 
     /**
@@ -2231,6 +2255,28 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
     MODERN_CLANG_NAN_REDUCER(nanprod, detail::nan_multiplies, typename std::decay_t<E>::value_type, 1)
 #endif
 
+    /**
+     * @ingroup nan_functions
+     * @brief Max of elements over given axes, replacing nan with lowest int.
+     */
+    XTENSOR_NAN_REDUCER_FUNCTION(nanmax, detail::nan_max, typename std::decay_t<E>::value_type, std::numeric_limits<int>::lowest())
+#ifdef X_OLD_CLANG
+    OLD_CLANG_NAN_REDUCER(nanmax, detail::nan_max, typename std::decay_t<E>::value_type, std::numeric_limits<int>::lowest())
+#else
+    MODERN_CLANG_NAN_REDUCER(nanmax, detail::nan_max, typename std::decay_t<E>::value_type, std::numeric_limits<int>::lowest())
+#endif
+
+    /**
+     * @ingroup nan_functions
+     * @brief Min of elements over given axes, replacing nan with max int.
+     */
+    XTENSOR_NAN_REDUCER_FUNCTION(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+#ifdef X_OLD_CLANG
+    OLD_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+#else
+    MODERN_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+#endif
+
 #undef XTENSOR_NAN_REDUCER_FUNCTION
 #undef OLD_CLANG_NAN_REDUCER
 #undef MODERN_CLANG_NAN_REDUCER
@@ -2295,6 +2341,91 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
 #endif
 
 #undef COUNT_NON_ZEROS_CONTENT
+
+#define COUNT_NON_NAN                                                           \
+    using result_type = std::size_t;                                            \
+    using value_type = typename std::decay_t<E>::value_type;                    \
+    auto init_fct = [](value_type const& lhs) -> result_type                    \
+    {                                                                           \
+        return (!math::isnan(lhs)) ? result_type(1) : result_type(0);           \
+    };                                                                          \
+    auto reduce_fct = [](const result_type& lhs, const value_type& rhs)         \
+         -> result_type                                                         \
+    {                                                                           \
+        return (!math::isnan(rhs)) ? lhs + result_type(1) : lhs;                \
+    };                                                                          \
+    auto merge_func = std::plus<result_type>();                                 \
+
+    template <class E, class EVS = DEFAULT_STRATEGY_REDUCERS,
+              class = std::enable_if_t<std::is_base_of<evaluation_strategy::base, EVS>::value, int>>
+    inline auto count_nonnan(E&& e, EVS es = EVS())
+    {
+        COUNT_NON_NAN;
+        return reduce(make_xreducer_functor(std::move(reduce_fct), std::move(init_fct), std::move(merge_func)),
+                      std::forward<E>(e), es);
+    }
+
+    template <class E, class X, class EVS = DEFAULT_STRATEGY_REDUCERS,
+              class = std::enable_if_t<!std::is_base_of<evaluation_strategy::base, X>::value, int>>
+    inline auto count_nonnan(E&& e, X&& axes, EVS es = EVS())
+    {
+        COUNT_NON_NAN;
+        return reduce(make_xreducer_functor(std::move(reduce_fct), std::move(init_fct), std::move(merge_func)),
+                      std::forward<E>(e), std::forward<X>(axes), es);
+    }
+
+#ifdef X_OLD_CLANG
+    template <class E, class I, class EVS = DEFAULT_STRATEGY_REDUCERS>
+    inline auto count_nonnan(E&& e, std::initializer_list<I> axes, EVS es = EVS())
+    {
+        COUNT_NON_NAN;
+        return reduce(make_xreducer_functor(std::move(reduce_fct), std::move(init_fct), std::move(merge_func)),
+                      std::forward<E>(e), axes, es);
+    }
+#else
+    template <class E, class I, std::size_t N, class EVS = DEFAULT_STRATEGY_REDUCERS>
+    inline auto count_nonnan(E&& e, const I (&axes)[N], EVS es = EVS())
+    {
+        COUNT_NON_NAN;
+        return reduce(make_xreducer_functor(std::move(reduce_fct), std::move(init_fct), std::move(merge_func)),
+                      std::forward<E>(e), axes, es);
+    }
+#endif
+
+#undef COUNT_NON_NAN
+
+    /**
+     * @ingroup nan_functions
+     * @brief Mean of elements over given axes, ignore nan.
+     */
+    template <class E, class X>
+    inline auto nanmean(E&& e, X&& axes)
+    {
+        auto s = nansum(std::forward<E>(e), std::forward<X>(axes));
+        auto c = count_nonnan(std::forward<E>(e), std::forward<X>(axes));
+        return std::move(s) / std::move(c);
+    }
+
+    template <class E>
+    inline auto nanmean(E&& e)
+    {
+        auto size = e.size();
+        return nansum(std::forward<E>(e)) / static_cast<double>(size);
+    }
+
+#ifdef X_OLD_CLANG
+    template <class E, class I, class EVS = DEFAULT_STRATEGY_REDUCERS>
+    inline auto nanmean(E&& e, std::initializer_list<I> axes, EVS es = EVS())
+    {
+        return nansum(std::forward<E>(e), axes, es) / count_nonnan(std::forward<E>(e), axes, es);
+    }
+#else
+    template <class E, class I, std::size_t N, class EVS = DEFAULT_STRATEGY_REDUCERS>
+    inline auto nanmean(E&& e, const I (&axes)[N], EVS es = EVS())
+    {
+        return nansum(std::forward<E>(e), axes, es) / count_nonnan(std::forward<E>(e), axes, es);
+    }
+#endif
 
     /**
      * @ingroup nan_functions
