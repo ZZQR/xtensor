@@ -2140,7 +2140,7 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
 
             constexpr result_type operator()(const value_type lhs, const value_type rhs) const
             {
-                return !math::isnan(rhs) ? std::max(lhs, rhs) : lhs;
+                return !math::isnan(rhs) ? (std::max)(lhs, rhs) : lhs;
             }
         };
 
@@ -2152,7 +2152,7 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
 
             constexpr result_type operator()(const value_type lhs, const value_type rhs) const
             {
-                return !math::isnan(rhs) ? std::min(lhs, rhs) : lhs;
+                return !math::isnan(rhs) ? (std::min)(lhs, rhs) : lhs;
             }
         };
     }
@@ -2270,11 +2270,11 @@ XTENSOR_INT_SPECIALIZATION_IMPL(FUNC_NAME, RETURN_VAL, unsigned long long);     
      * @ingroup nan_functions
      * @brief Min of elements over given axes, replacing nan with max int.
      */
-    XTENSOR_NAN_REDUCER_FUNCTION(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+    XTENSOR_NAN_REDUCER_FUNCTION(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, (std::numeric_limits<int>::max)())
 #ifdef X_OLD_CLANG
-    OLD_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+    OLD_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, (std::numeric_limits<int>::max)())
 #else
-    MODERN_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, std::numeric_limits<int>::max())
+    MODERN_CLANG_NAN_REDUCER(nanmin, detail::nan_min, typename std::decay_t<E>::value_type, (std::numeric_limits<int>::max)())
 #endif
 
 #undef XTENSOR_NAN_REDUCER_FUNCTION
